@@ -30,3 +30,11 @@
 *.exe
 *.out
 *.app
+/.vs/Libmpvcpp
+/x64/Debug
+/Libmpvcpp.sln
+/Libmpvcpp.vcxproj
+/Libmpvcpp.vcxproj.filters
+/Libmpvcpp.vcxproj.user
+/main.cpp
+/mpv/include/mpv
