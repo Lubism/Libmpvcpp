@@ -18,11 +18,12 @@ namespace mpv
 
 			static inline char* Create(const std::string& value)
 			{
-				char* result = String::Create(value.capacity());
-				memcpy(result, value.c_str(),
-					value.size());
+				ulong capacity = value.size() + 1;
+				char* result = String::Create(
+					capacity);
 
-				result[value.size()] = '\0';
+				memcpy(result, value.c_str(), --capacity);
+				result[capacity] = '\0';
 				return result;
 			}
 

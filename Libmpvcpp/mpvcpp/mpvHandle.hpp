@@ -5,13 +5,19 @@
 
 namespace mpv
 {
+	namespace render { class Context; }
+
 	class Handle
 	{
 		using Error = code::Error;
 		using ulong = unsigned long long;
 	public:
+		enum InitType { None = 0, Create, Init };
+	public:
 		inline Handle() {}
+		inline Handle(InitType state);
 		inline ~Handle() { this->destroy(); }
+
 		inline Handle(const Handle&) = delete;
 		inline Handle(Handle&& right) noexcept;
 		inline Handle& operator=(const Handle&) = delete;
@@ -38,14 +44,16 @@ namespace mpv
 		inline code::Error continueHook(ulong hookID) const;
 		inline code::Error addHook(ulong replyData, const std::string& name, int priority = 0) const;
 
+		inline operator bool() const { return Data; }
 		inline bool isCreated() const { return Data; }
 		inline bool operator!() const { return !Data; }
 		inline bool isInitialized() const { return InitState; }
 
 		inline void destroy() { mpv_destroy(Data); this->clearState(); }
 		inline void terminate() { mpv_terminate_destroy(Data); this->clearState(); }
+		static inline ulong APIVersion() { return static_cast<ulong>(mpv_client_api_version()); }
 	private:
-		friend class RenderContext;
+		friend class render::Context;
 		friend class Property;
 		friend class Command;
 		friend class Event;
@@ -59,6 +67,22 @@ namespace mpv
 			Data = nullptr;
 		}
 	};
+
+	inline Handle::Handle(InitType state)
+	{
+		switch (state)
+		{
+		case InitType::Create:
+			this->create();
+			break;
+		case InitType::Init:
+			this->create();
+			this->initialize();
+			break;
+		default:
+			break;
+		}
+	}
 
 	inline Handle::Handle(Handle&& right) noexcept
 	{
@@ -160,7 +184,7 @@ namespace mpv
 		auto callback = reinterpret_cast<
 			void (*)(void*)>(func);
 
-		mpv_set_wakeup_callback(this->Data, callback, &arg);
+		mpv_set_wakeup_callback(Data, callback, &arg);
 		return Error::Success;
 	}
 

@@ -5,6 +5,7 @@
 #include"code/mpvFormat.hpp"
 #include"code/mpvError.hpp"
 #include<unordered_map>
+#include<memory>
 
 namespace mpv
 {
@@ -33,17 +34,17 @@ namespace mpv
 		inline Node& operator=(Node&& right) noexcept { return this->assign(std::move(right)); }
 
 		inline void clear();
-		inline mpv_node translate();
+		inline mpv_node translate() const;
 		inline Node& assign(const Node& right);
 		inline Node& assign(Node&& right) noexcept;
 		inline Node& assign(const mpv_node& right);
 	private:
-		inline mpv_node_list* translateArray();
-		inline mpv_node_list* translateMap();
-		inline void clearNode();
+		inline mpv_node_list* translateArray() const;
+		inline mpv_node_list* translateMap() const;
+		inline void clearNode() const;
 
-		mpv_node_list mpvNodelist{};
-		mpv_node mpvNode{};
+		std::unique_ptr<mpv_node_list> mpvNodelist = std::unique_ptr<mpv_node_list>(new mpv_node_list);
+		std::unique_ptr<mpv_node> mpvNode = std::unique_ptr<mpv_node>(new mpv_node);
 	};
 
 	inline void Node::clear()
@@ -59,13 +60,13 @@ namespace mpv
 		Int = 0;
 	}
 
-	inline mpv_node Node::translate()
+	inline mpv_node Node::translate() const
 	{
 		this->clearNode();
 		ulong it = 0;
 
-		mpvNode.format = code::fromFormat(Format);
-		auto& data = mpvNode.u;
+		mpvNode->format = code::fromFormat(Format);
+		auto& data = mpvNode->u;
 		switch (Format)
 		{
 		case code::Format::BooleanInt:
@@ -92,7 +93,7 @@ namespace mpv
 			break;
 		}
 
-		return mpvNode;
+		return *mpvNode;
 	}
 
 	inline Node& Node::assign(const Node& right)
@@ -177,54 +178,54 @@ namespace mpv
 		return *this;
 	}
 
-	inline mpv_node_list* Node::translateArray()
+	inline mpv_node_list* Node::translateArray() const
 	{
-		if (Array.empty()) return &mpvNodelist;
+		if (Array.empty()) return mpvNodelist.get();
 
-		mpvNodelist.num = static_cast<int>(Array.size());
-		mpvNodelist.values = new mpv_node[Array.size()];
-		mpvNodelist.keys = nullptr;
+		mpvNodelist->num = static_cast<int>(Array.size());
+		mpvNodelist->values = new mpv_node[Array.size()];
+		mpvNodelist->keys = nullptr;
 		ulong index = 0;
 
 		for (auto it = Array.begin(); it != Array.end(); it++)
 		{
 			index = std::distance(Array.begin(), it);
-			mpvNodelist.values[index] = it->translate();
+			mpvNodelist->values[index] = it->translate();
 		}
 
-		return &mpvNodelist;
+		return mpvNodelist.get();
 	}
 
-	inline mpv_node_list* Node::translateMap()
+	inline mpv_node_list* Node::translateMap() const
 	{
-		if (Map.empty()) return &mpvNodelist;
+		if (Map.empty()) return mpvNodelist.get();
 		std::vector<std::string> storage;
 		for (auto& it : Map) {
 			storage.push_back(it.first);
 		}
 
-		mpvNodelist.keys = node::StringArray::Create(storage);
-		mpvNodelist.num = static_cast<int>(Map.size());
-		mpvNodelist.values = new mpv_node[Map.size()];
+		mpvNodelist->keys = node::StringArray::Create(storage);
+		mpvNodelist->num = static_cast<int>(Map.size());
+		mpvNodelist->values = new mpv_node[Map.size()];
 		ulong index = 0;
 
 		for (auto it = Map.begin(); it != Map.end(); it++)
 		{
 			index = std::distance(Map.begin(), it);
-			mpvNodelist.values[index] = it->second.translate();
+			mpvNodelist->values[index] = it->second.translate();
 		}
 
-		return &mpvNodelist;
+		return mpvNodelist.get();
 	}
 
-	inline void Node::clearNode()
+	inline void Node::clearNode() const
 	{
-		auto format = code::toFormat(mpvNode.format);
+		auto format = code::toFormat(mpvNode->format);
 		if (format == code::Format::None)
 			return;
 
-		mpvNode.format = MPV_FORMAT_NONE;
-		auto& data = mpvNode.u;
+		mpvNode->format = MPV_FORMAT_NONE;
+		auto& data = mpvNode->u;
 		ulong it = 0;
 
 		switch (format)
@@ -237,17 +238,17 @@ namespace mpv
 			node::ByteArray::Delete(data.ba);
 			break;
 		case code::Format::NodeArray:
-			delete[] mpvNodelist.values;
+			delete[] mpvNodelist->values;
 
-			mpvNodelist.values = nullptr;
+			mpvNodelist->values = nullptr;
 			data.list = nullptr;
 			break;
 		case code::Format::NodeMap:
-			node::StringArray::Delete(mpvNodelist.keys,
-				mpvNodelist.num);
-			delete[] mpvNodelist.values;
+			node::StringArray::Delete(mpvNodelist->keys,
+				mpvNodelist->num);
+			delete[] mpvNodelist->values;
 
-			mpvNodelist.values = nullptr;
+			mpvNodelist->values = nullptr;
 			data.list = nullptr;
 			break;
 		case code::Format::OSDString:

@@ -13,7 +13,7 @@ namespace mpv
 		using String = std::string;
 	public:
 		static inline code::Error Apply(const Handle& handle, const String& name,
-			const long long& data, Int replyData = -1);
+			const Int& data, Int replyData = -1);
 		static inline code::Error Apply(const Handle& handle, const String& name,
 			const String& data, Int replyData = -1);
 		static inline code::Error Apply(const Handle& handle, const String& name,
@@ -23,10 +23,10 @@ namespace mpv
 		static inline code::Error Apply(const Handle& handle, const String& name,
 			const bool& data, Int replyData = -1);
 		static inline code::Error Apply(const Handle& handle, const String& name,
-			Node& data, Int replyData = -1);
+			const Node& data, Int replyData = -1);
 
 		static inline code::Error Acquire(const Handle& handle, const String& name,
-			long long& data);
+			Int& data);
 		static inline code::Error Acquire(const Handle& handle, const String& name,
 			String& data);
 		static inline code::Error Acquire(const Handle& handle, const String& name,
@@ -61,7 +61,7 @@ namespace mpv
 		static inline code::Error Apply(const Handle&, const std::string&, const Ty&) = delete;
 	};
 
-	inline code::Error Property::Apply(const Handle& handle, const String& name, const long long& data, Int replyData) {
+	inline code::Error Property::Apply(const Handle& handle, const String& name, const Int& data, Int replyData) {
 		return Property::Setter(handle, name, Format::Int, data, replyData);
 	}
 	inline code::Error Property::Apply(const Handle& handle, const String& name, const String& data, Int replyData) {
@@ -76,11 +76,11 @@ namespace mpv
 	inline code::Error Property::Apply(const Handle& handle, const String& name, const bool& data, Int replyData) {
 		return Property::Setter(handle, name, Format::BooleanInt, data ? 1 : 0, replyData);
 	}
-	inline code::Error Property::Apply(const Handle& handle, const String& name, Node& data, Int replyData) {
+	inline code::Error Property::Apply(const Handle& handle, const String& name, const Node& data, Int replyData) {
 		return Property::Setter(handle, name, Format::Node, data.translate(), replyData);
 	}
 
-	inline code::Error Property::Acquire(const Handle& handle, const String& name, long long& data) {
+	inline code::Error Property::Acquire(const Handle& handle, const String& name, Int& data) {
 		return Property::Getter(handle, name, Format::Int, data);
 	}
 	inline code::Error Property::Acquire(const Handle& handle, const String& name, String& data) {

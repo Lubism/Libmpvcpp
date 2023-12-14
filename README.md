@@ -22,7 +22,7 @@
 
 | 类别(mpv::~) | 说明 |
 | :---:	| :---:	|
-| Node | 框架中的基本数据容器 |
+| Node | 框架中的集成数据容器 |
 | Event | 框架中的事件容器 |
 | Handle | 播放底层的句柄 |
 | Command | 命令函数集	|
@@ -35,14 +35,14 @@
 构造 Handle 类的对象, 对对象创建实例及初始化实例:  
 
 ```
-#include"mpvcpp/Handle.hpp"
+#include"mpvcpp/Command.hpp"
 
 mpv::Handle handle;
 handle.create();
 handle.initialize();
 ```
 
-调用 Command 类中的函数, 传入参数: 
+调用 Command 类中的函数, 传入参数:  
 
 ```
 mpv::Command::Sync(handle, {
@@ -57,4 +57,4 @@ mpv::Command::Sync(handle, {
 
 ## 其它
 
-具体用法参考以下文档(施工中...)  
+[开发文档(施工中...)](Libmpvcpp/document/Document.md)  
