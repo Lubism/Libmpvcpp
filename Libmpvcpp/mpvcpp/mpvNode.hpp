@@ -1,7 +1,4 @@
 #pragma once
-#include"node/mpvStringArray.hpp"
-#include"node/mpvByteArray.hpp"
-#include"node/mpvString.hpp"
 #include"code/mpvFormat.hpp"
 #include"code/mpvError.hpp"
 #include<unordered_map>
@@ -11,8 +8,16 @@ namespace mpv
 {
 	class Node
 	{
+		template<typename Ty>
+		using Ptr = std::unique_ptr<Ty>;
+
 		using ulong = unsigned long long;
 		using uchar = unsigned char;
+		using Fmt = code::Format;
+
+		using listptr = Ptr<mpv_node_list>;
+		using nodeptr = Ptr<mpv_node>;
+		using keyptr = Ptr<char*>;
 	public:
 		code::Format Format = code::Format::None;
 		std::string String = "";
@@ -25,26 +30,43 @@ namespace mpv
 		std::vector<Node> Array;
 	public:
 		inline Node() {}
-		inline ~Node() { this->clearNode(); }
+		inline ~Node() { this->clearPtr(); }
+		inline Node(const char* right) { this->assign(right); }
 		inline Node(const Node& right) { this->assign(right); }
-		inline Node(const mpv_node& right) { this->assign(right); }
 		inline Node(Node&& right) noexcept { this->assign(std::move(right)); }
+		template<typename Ty> inline Node(const Ty& right) { this->assign(right); }
+
+		inline operator mpv_node() const { return this->translate(); }
+		inline Node& operator=(const char* right) { return this->assign(right); }
 		inline Node& operator=(const Node& right) { return this->assign(right); }
-		inline Node& operator=(const mpv_node& right) { return this->assign(right); }
 		inline Node& operator=(Node&& right) noexcept { return this->assign(std::move(right)); }
+		template<typename Ty> inline Node& operator=(const Ty& right) { return this->assign(right); }
 
 		inline void clear();
 		inline mpv_node translate() const;
 		inline Node& assign(const Node& right);
-		inline Node& assign(Node&& right) noexcept;
 		inline Node& assign(const mpv_node& right);
+		inline Node& assign(Node&& right) noexcept;
+		template<typename Ty> inline Node& assign(const Ty&) = delete;
+
+		inline Node& assign(const long long& right) { Format = Fmt::Int; Int = right; return *this; }
+		inline Node& assign(const char* right) { Format = Fmt::String; String = right; return *this; }
+		inline Node& assign(const bool& right) { Format = Fmt::BooleanInt; Bool = right; return *this; }
+		inline Node& assign(const double& right) { Format = Fmt::Double; Double = right; return *this; }
+		inline Node& assign(const std::string& right) { Format = Fmt::String; String = right; return *this; }
+		inline Node& assign(const std::vector<Node>& right) { Format = Fmt::NodeArray; Array = right; return *this; }
+		inline Node& assign(const std::vector<uchar>& right) { Format = Fmt::ByteArray; ByteArray = right; return *this; }
+		inline Node& assign(const std::unordered_map<std::string, Node>& right) { Format = Fmt::NodeMap; Map = right; return *this; }
 	private:
 		inline mpv_node_list* translateArray() const;
 		inline mpv_node_list* translateMap() const;
-		inline void clearNode() const;
+		inline void clearPtr() const;
 
-		std::unique_ptr<mpv_node_list> mpvNodelist = std::unique_ptr<mpv_node_list>(new mpv_node_list);
-		std::unique_ptr<mpv_node> mpvNode = std::unique_ptr<mpv_node>(new mpv_node);
+		listptr Listptr = listptr(new mpv_node_list{});
+		nodeptr Nodeptr = nodeptr(new mpv_node{});
+
+		nodeptr Valueptr = nodeptr();
+		keyptr Keyptr = keyptr();
 	};
 
 	inline void Node::clear()
@@ -52,48 +74,49 @@ namespace mpv
 		std::unordered_map<std::string, Node>().swap(Map);
 		std::vector<uchar>().swap(ByteArray);
 		std::vector<Node>().swap(Array);
-
-		Format = code::Format::None;
+		std::string().swap(String);
+		Format = Fmt::None;
 		Double = 0.0;
 		Bool = false;
-		String = "";
 		Int = 0;
 	}
 
 	inline mpv_node Node::translate() const
 	{
-		this->clearNode();
-		ulong it = 0;
+		this->clearPtr();
+		auto& data = Nodeptr->u;
+		Nodeptr->format = code::fromFormat(Format);
 
-		mpvNode->format = code::fromFormat(Format);
-		auto& data = mpvNode->u;
 		switch (Format)
 		{
-		case code::Format::BooleanInt:
+		case Fmt::BooleanInt:
 			data.flag = Bool ? 1 : 0;
 			break;
-		case code::Format::ByteArray:
-			data.ba = node::ByteArray::Create(ByteArray);
+		case Fmt::ByteArray:
+			data.ba->size = ByteArray.size();
+			data.ba->data = const_cast<uchar*>(&ByteArray.front());
 			break;
-		case code::Format::NodeArray:
+		case Fmt::NodeArray:
 			data.list = this->translateArray();
 			break;
-		case code::Format::NodeMap:
+		case Fmt::NodeMap:
 			data.list = this->translateMap();
 			break;
-		case code::Format::OSDString:
-		case code::Format::String:
-			data.string = node::String::Create(String);
+		case Fmt::OSDString:
+		case Fmt::String:
+			data.string = const_cast<char*>(String.data());
 			break;
-		case code::Format::Double:
+		case Fmt::Double:
 			data.double_ = Double;
 			break;
-		case code::Format::Int:
+		case Fmt::Int:
 			data.int64 = Int;
+			break;
+		default:
 			break;
 		}
 
-		return *mpvNode;
+		return *Nodeptr;
 	}
 
 	inline Node& Node::assign(const Node& right)
@@ -114,6 +137,54 @@ namespace mpv
 		return *this;
 	}
 
+	inline Node& Node::assign(const mpv_node& right)
+	{
+		if (right.format == Fmt::None)
+			return *this;
+		this->clear();
+
+		ulong it = 0;
+		auto& data = right.u;
+		auto& list = data.list;
+		Format = code::toFormat(right.format);
+		switch (Format)
+		{
+		case Fmt::BooleanInt:
+			Bool = (data.flag == 1) ? true : false;
+			break;
+		case Fmt::ByteArray:
+			ByteArray.reserve(data.ba->size);
+			for (it = 0; it < data.ba->size; it++)
+				ByteArray.push_back(static_cast<uchar*>(
+					data.ba->data)[it]);
+			break;
+		case Fmt::NodeArray:
+			Array.reserve(list->num);
+			for (it = 0; it < list->num; it++)
+				Array.push_back(list->values[it]);
+			break;
+		case Fmt::NodeMap:
+			Map.reserve(list->num);
+			for (it = 0; it < list->num; it++)
+				Map[list->keys[it]] = list->values[it];
+			break;
+		case Fmt::OSDString:
+		case Fmt::String:
+			String = data.string;
+			break;
+		case Fmt::Double:
+			Double = data.double_;
+			break;
+		case Fmt::Int:
+			Int = data.int64;
+			break;
+		default:
+			break;
+		}
+
+		return *this;
+	}
+
 	inline Node& Node::assign(Node&& right) noexcept
 	{
 		if (&right == this) return *this;
@@ -127,134 +198,57 @@ namespace mpv
 		Bool = right.Bool;
 		Int = right.Int;
 
-		right.Format = code::Format::None;
+		right.Format = Fmt::None;
 		right.Double = 0.0;
 		right.Bool = false;
-		right.String = "";
 		right.Int = 0;
-
-		return *this;
-	}
-
-	inline Node& Node::assign(const mpv_node& right)
-	{
-		if (right.format == MPV_FORMAT_NONE)
-			return *this;
-		this->clear();
-
-		Format = code::toFormat(right.format);
-		auto& data = right.u;
-		ulong it = 0;
-
-		switch (Format)
-		{
-		case code::Format::BooleanInt:
-			Bool = (data.flag == 1) ? true : false;
-			break;
-		case code::Format::ByteArray:
-			node::ByteArray::Assign(ByteArray,
-				*data.ba);
-			break;
-		case code::Format::NodeArray:
-			for (it = 0; it < data.list->num; it++)
-				Array.push_back(data.list->values[it]);
-			break;
-		case code::Format::NodeMap:
-			for (it = 0; it < data.list->num; it++)
-				Map[data.list->keys[it]] = data.list->values[it];
-			break;
-		case code::Format::OSDString:
-		case code::Format::String:
-			String = data.string;
-			break;
-		case code::Format::Double:
-			Double = data.double_;
-			break;
-		case code::Format::Int:
-			Int = data.int64;
-			break;
-		}
 
 		return *this;
 	}
 
 	inline mpv_node_list* Node::translateArray() const
 	{
-		if (Array.empty()) return mpvNodelist.get();
-
-		mpvNodelist->num = static_cast<int>(Array.size());
-		mpvNodelist->values = new mpv_node[Array.size()];
-		mpvNodelist->keys = nullptr;
 		ulong index = 0;
+		Listptr->keys = nullptr;
+		Listptr->num = static_cast<int>(Array.size());
+		const_cast<keyptr*>(&Keyptr)->reset(new char* [Listptr->num]);
+		const_cast<nodeptr*>(&Valueptr)->reset(new mpv_node[Listptr->num]);
 
 		for (auto it = Array.begin(); it != Array.end(); it++)
 		{
 			index = std::distance(Array.begin(), it);
-			mpvNodelist->values[index] = it->translate();
+			Valueptr.operator->()[index] = it->translate();
 		}
 
-		return mpvNodelist.get();
+		Listptr->values = Valueptr.get();
+		return Listptr.get();
 	}
 
 	inline mpv_node_list* Node::translateMap() const
 	{
-		if (Map.empty()) return mpvNodelist.get();
-		std::vector<std::string> storage;
-		for (auto& it : Map) {
-			storage.push_back(it.first);
-		}
-
-		mpvNodelist->keys = node::StringArray::Create(storage);
-		mpvNodelist->num = static_cast<int>(Map.size());
-		mpvNodelist->values = new mpv_node[Map.size()];
 		ulong index = 0;
+		Listptr->num = static_cast<int>(Map.size());
+		const_cast<keyptr*>(&Keyptr)->reset(new char* [Listptr->num]);
+		const_cast<nodeptr*>(&Valueptr)->reset(new mpv_node[Listptr->num]);
 
 		for (auto it = Map.begin(); it != Map.end(); it++)
 		{
 			index = std::distance(Map.begin(), it);
-			mpvNodelist->values[index] = it->second.translate();
+			Valueptr.operator->()[index] = it->second.translate();
+			Keyptr.operator->()[index] = const_cast<char*>(it->first.data());
 		}
 
-		return mpvNodelist.get();
+		Listptr->values = Valueptr.get();
+		Listptr->keys = Keyptr.get();
+		return Listptr.get();
 	}
 
-	inline void Node::clearNode() const
+	inline void Node::clearPtr() const
 	{
-		auto format = code::toFormat(mpvNode->format);
-		if (format == code::Format::None)
-			return;
+		Listptr->num = 0;
+		*Nodeptr = mpv_node{};
 
-		mpvNode->format = MPV_FORMAT_NONE;
-		auto& data = mpvNode->u;
-		ulong it = 0;
-
-		switch (format)
-		{
-		case code::Format::BooleanInt:
-		case code::Format::Double:
-		case code::Format::Int:
-			break;
-		case code::Format::ByteArray:
-			node::ByteArray::Delete(data.ba);
-			break;
-		case code::Format::NodeArray:
-			delete[] mpvNodelist->values;
-
-			mpvNodelist->values = nullptr;
-			data.list = nullptr;
-			break;
-		case code::Format::NodeMap:
-			node::StringArray::Delete(mpvNodelist->keys,
-				mpvNodelist->num);
-			delete[] mpvNodelist->values;
-
-			mpvNodelist->values = nullptr;
-			data.list = nullptr;
-			break;
-		case code::Format::OSDString:
-		case code::Format::String:
-			node::String::Delete(data.string);
-			break;
-		}
+		Listptr->keys = nullptr;
+		Listptr->values = nullptr;
 	}
 }

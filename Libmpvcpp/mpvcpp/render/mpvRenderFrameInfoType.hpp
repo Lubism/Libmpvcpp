@@ -14,6 +14,16 @@ namespace mpv
 			BlockVsync	= MPV_RENDER_FRAME_INFO_BLOCK_VSYNC
 		};
 
+		inline mpv_render_frame_info_flag fromFrameInfoType(const FrameInfoType& value)
+		{
+			return static_cast<mpv_render_frame_info_flag>(value);
+		}
+
+		inline bool operator==(int left, const FrameInfoType& right)
+		{
+			return static_cast<FrameInfoType>(left) == right;
+		}
+
 		inline FrameInfoType toFrameInfoType(int value)
 		{
 			if (value > MPV_RENDER_FRAME_INFO_BLOCK_VSYNC)
@@ -22,11 +32,6 @@ namespace mpv
 				return FrameInfoType::BlockVsync;
 
 			return static_cast<FrameInfoType>(value);
-		}
-
-		inline mpv_render_frame_info_flag fromFrameInfoType(const FrameInfoType& value)
-		{
-			return static_cast<mpv_render_frame_info_flag>(value);
 		}
 	}
 }

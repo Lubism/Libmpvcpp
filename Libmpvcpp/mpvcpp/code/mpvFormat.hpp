@@ -22,6 +22,11 @@ namespace mpv
 			ByteArray		= MPV_FORMAT_BYTE_ARRAY
 		};
 
+		inline bool operator==(int left, const Format& right)
+		{
+			return static_cast<Format>(left) == right;
+		}
+
 		inline mpv_format fromFormat(const Format& value)
 		{
 			return static_cast<mpv_format>(value);

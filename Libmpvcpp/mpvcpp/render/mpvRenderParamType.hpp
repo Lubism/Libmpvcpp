@@ -33,6 +33,16 @@ namespace mpv
 			SW_Pointer			= MPV_RENDER_PARAM_SW_POINTER
 		};
 
+		inline mpv_render_param_type fromParamType(const ParamType& value)
+		{
+			return static_cast<mpv_render_param_type>(value);
+		}
+
+		inline bool operator==(int left, const ParamType& right)
+		{
+			return static_cast<ParamType>(left) == right;
+		}
+
 		inline ParamType toParamType(int value)
 		{
 			if (value > MPV_RENDER_PARAM_SW_POINTER)
@@ -41,11 +51,6 @@ namespace mpv
 				return ParamType::Invalid;
 
 			return static_cast<ParamType>(value);
-		}
-
-		inline mpv_render_param_type fromParamType(const ParamType& value)
-		{
-			return static_cast<mpv_render_param_type>(value);
 		}
 	}
 }

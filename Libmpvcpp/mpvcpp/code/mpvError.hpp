@@ -46,6 +46,11 @@ namespace mpv
 			return mpv_error_string(fromError(value));
 		}
 
+		inline bool operator==(int left, const Error& right)
+		{
+			return static_cast<Error>(left) == right;
+		}
+
 		inline mpv_error fromError(const Error& value)
 		{
 			return static_cast<mpv_error>(value);

@@ -39,6 +39,11 @@ namespace mpv
 				fromEventID(value)));
 		}
 
+		inline bool operator==(int left, const EventID& right)
+		{
+			return static_cast<EventID>(left) == right;
+		}
+
 		inline mpv_event_id fromEventID(const EventID& value)
 		{
 			return static_cast<mpv_event_id>(value);
