@@ -22,18 +22,18 @@ namespace mpv
 		static inline code::Error Acquire(const Handle& handle, const Args& value, Node& result);
 		static inline code::Error AbortAsync(const Handle& handle, ulong replyData);
 	private:
-		static inline void ConvertArgs(const Args& value);
-		static charArgs ArgPointer;
-		static ulong ArgLength;
+		static inline std::vector<char*> ImportArgs(const Args& value);
 	};
 
 	inline code::Error Command::Sync(const Handle& handle, const Args& value)
 	{
 		if (!handle || value.empty()) return code::Error::InvalidParameter;
-		Command::ConvertArgs(value);
+		auto args = Command::ImportArgs(value);
 
 		return code::toError(mpv_command(handle.Data,
-			ArgPointer.get()));
+			const_cast<const char**>(
+				args.data())
+		));
 	}
 	inline code::Error Command::SyncNode(const Handle& handle, Node args, Node& result)
 	{
@@ -57,11 +57,12 @@ namespace mpv
 	inline code::Error Command::Async(const Handle& handle, const Args& value, ulong replyData)
 	{
 		if (!handle || value.empty()) return code::Error::InvalidParameter;
-		Command::ConvertArgs(value);
+		auto args = Command::ImportArgs(value);
 
-		return code::toError(mpv_command_async(
-			handle.Data, replyData,
-			ArgPointer.get()));
+		return code::toError(mpv_command_async(handle.Data,
+			replyData, const_cast<const char**>(
+				args.data())
+		));
 	}
 	inline code::Error Command::AsyncNode(const Handle& handle, Node args, ulong replyData)
 	{
@@ -77,11 +78,11 @@ namespace mpv
 	inline code::Error Command::Acquire(const Handle& handle, const Args& value, Node& result)
 	{
 		if (!handle || value.empty()) return code::Error::InvalidParameter;
-		Command::ConvertArgs(value);
+		auto args = Command::ImportArgs(value);
 		mpv_node output{};
 
-		auto error = code::toError(mpv_command_ret(
-			handle.Data, ArgPointer.get(),
+		auto error = code::toError(mpv_command_ret(handle.Data,
+			const_cast<const char**>(args.data()),
 			&output));
 
 		if (error == code::Error::Success) result = output;
@@ -95,17 +96,10 @@ namespace mpv
 		return code::Error::Success;
 	}
 
-	inline void Command::ConvertArgs(const Args& value)
+	inline std::vector<char*> Command::ImportArgs(const Args& value)
 	{
-		size_t index = 0;
 		std::string storage = "";
-		if (ArgLength <= value.size())
-		{
-			while (ArgLength <= value.size())
-				ArgLength += ArgLength;
-			ArgPointer.reset(new const char* [ArgLength]);
-		}
-
+		std::vector<char*> result;
 		auto isNull = [&](const std::string& value) {
 			storage = value;
 
@@ -114,19 +108,17 @@ namespace mpv
 			return (storage == "nullptr" || storage == "null");
 		};
 
-		for (auto it = value.begin(); it != value.end(); it++)
+		for (auto& it : value)
 		{
-			index = std::distance(value.begin(), it);
+			if (it.empty() || isNull(it)) {
+				result.push_back(nullptr);
+			}
 
-			if (it->empty() || isNull(*it))
-				ArgPointer.operator->()[index] = nullptr;
-			else
-				ArgPointer.operator->()[index] = it->c_str();
+			result.push_back(const_cast<char*>(
+				it.c_str()));
 		}
 
-		ArgPointer.operator->()[++index] = nullptr;
+		result.push_back(nullptr);
+		return result;
 	}
-
-	Command::charArgs Command::ArgPointer = Command::charArgs(new const char* [16]);
-	Command::ulong Command::ArgLength = 16;
 }

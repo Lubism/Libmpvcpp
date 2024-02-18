@@ -1,5 +1,6 @@
 #pragma once
 #include<mpv/client.h>
+#include<type_traits>
 
 namespace mpv
 {
