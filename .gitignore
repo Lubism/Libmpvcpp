@@ -39,3 +39,6 @@
 /main.cpp
 /mpv/include/mpv
 /x64/Release
+/MpvPlayer.cpp
+/MpvPlayer.hpp
+/main.h
