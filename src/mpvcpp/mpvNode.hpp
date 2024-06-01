@@ -44,6 +44,7 @@ namespace mpv
 		template<typename Ty> inline Node& operator=(const Ty& right) { return this->assign(right); }
 
 		inline void clear();
+		inline void reset();
 		inline mpv_node translate() const;
 		inline Node& assign(const Node& right);
 		inline Node& assign(const mpv_node& right);
@@ -71,6 +72,19 @@ namespace mpv
 	};
 
 	inline void Node::clear()
+	{
+		ByteArray.clear();
+		String.clear();
+		Array.clear();
+		Map.clear();
+		
+		Format = Fmt::None;
+		Double = 0.0;
+		Bool = false;
+		Int = 0;
+	}
+
+	inline void Node::reset()
 	{
 		std::map<std::string, Node>().swap(Map);
 		std::vector<uchar>().swap(ByteArray);
